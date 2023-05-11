@@ -48,7 +48,7 @@ train_queries = [get_question(protein_name) for protein_name in train_proteins]
 
 train_outputs = uniprot_experimental[uniprot_experimental["Entry Name"].isin(train_proteins_df[0])][["Gene Ontology (GO)"]]
      
-train_keys = ["Context", "Query", "Outputs"]
+train_keys = ["input", "instruction", "output"]
 
 train_data = zip(train_contexts["Function [CC]"], train_queries, train_outputs["Gene Ontology (GO)"])
 train_data = [dict(zip(train_keys, x)) for x in train_data]
@@ -67,7 +67,7 @@ valid_queries = [get_question(protein_name) for protein_name in valid_proteins]
 
 valid_outputs = uniprot_experimental[uniprot_experimental["Entry Name"].isin(valid_proteins_df[0])][["Gene Ontology (GO)"]]
 
-valid_keys = ["Context", "Query", "Outputs"]
+valid_keys = ["input", "instruction", "output"]
 
 valid_data = zip(valid_contexts["Function [CC]"], valid_queries, valid_outputs["Gene Ontology (GO)"])
 valid_data = [dict(zip(valid_keys, x)) for x in valid_data]
