@@ -24,6 +24,7 @@ class ModelArgs:
     max_seq_len: int = 2048
     adapter_len: int = 10
     adapter_layer: int = 30
+    num_gos: int = 0
 
 
 class RMSNorm(torch.nn.Module):
@@ -184,6 +185,7 @@ class Transformer(nn.Module):
         self.adapter_layer = params.adapter_layer
 
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=0)
+        self.bce_criterion = torch.nn.BCEWithLogitsLoss()
 
         self.layers = torch.nn.ModuleList()
         for layer_id in range(params.n_layers):
@@ -194,10 +196,22 @@ class Transformer(nn.Module):
 
         self.freqs_cis = precompute_freqs_cis(self.params.dim // self.params.n_heads, self.params.max_seq_len * 2)
 
-    def forward(self, examples, labels):
+        #ferzcam
+        self.classifier = nn.Sequential(nn.Linear(self.params.dim, params.num_gos),
+                                                                                
+                                        )
+        self.aggregator = nn.Sequential(nn.Linear(self.params.max_seq_len, 1),
+                                        
+                                        )
+        
+        
 
+    def forward(self, examples, labels, training_mode = "masked_lm"):
+
+        
         _bsz, seqlen = examples.shape
 
+        # Process first layers with no adapter
         with torch.no_grad():
             h = self.tok_embeddings(examples)
             freqs_cis = self.freqs_cis.to(h.device)
@@ -216,9 +230,55 @@ class Transformer(nn.Module):
             adapter_index = adapter_index + 1
 
         h = self.norm(h)
-        output = self.output(h)
-        output = output[:, :-1, :].reshape(-1, self.vocab_size)
-        labels = labels[:, 1:].flatten()
 
-        c_loss = self.criterion(output, labels)
-        return c_loss
+        if training_mode == "masked_lm":
+            output = self.output(h)
+            output = output[:, :-1, :].reshape(-1, self.vocab_size)
+            labels = labels[:, 1:].flatten()
+            c_loss = self.criterion(output, labels)
+            return c_loss
+
+        elif training_mode == "classification":
+            h = h.permute(0, 2, 1)
+            preds = self.aggregator(h)
+            preds = preds.squeeze(-1)
+            preds = F.relu(preds)
+            preds = self.classifier(preds)
+            #preds = torch.mean(preds, dim=1).squeeze()
+            loss = self.bce_criterion(preds, labels.float())
+            return loss
+        else:
+            raise NotImplementedError
+
+
+
+    @torch.no_grad()
+    def predict(self, examples):
+
+        
+        _bsz, seqlen = examples.shape
+        
+        # Process first layers with no adapter
+        with torch.no_grad():
+            h = self.tok_embeddings(examples)
+            freqs_cis = self.freqs_cis.to(h.device)
+            freqs_cis = freqs_cis[:seqlen]
+            mask = None
+            mask = torch.full((1, 1, seqlen, seqlen), float("-inf"), device=h.device)
+            mask = torch.triu(mask, diagonal=0 + 1).type_as(h)
+            start_pos = 0
+            for layer in self.layers[: -1 * self.adapter_layer]:
+                h = layer(h, start_pos, freqs_cis, mask)
+
+        adapter_index = 0
+        adapter = self.adapter_query.weight.reshape(-1, self.adapter_len, 4096).unsqueeze(1)
+        for layer in self.layers[-1 * self.adapter_layer :]:
+            h = layer(h, start_pos, freqs_cis, mask, adapter[adapter_index].half())
+            adapter_index = adapter_index + 1
+
+        h = self.norm(h)
+        preds = self.classifier(h)
+        preds = preds.permute(0, 2, 1)
+        preds = self.aggregator(preds).squeeze(-1)
+        return F.sigmoid(preds)
+                                

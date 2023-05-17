@@ -100,6 +100,7 @@ def main(
         "Tell me five words that rhyme with 'shock'.",
         "Translate the sentence 'I have no mouth but I must scream' into Spanish.",
         "Count up from 1 to 500.",
+        "Which gene ontology terms describe the functional roles of 14331_MAIZE?",
     ]
     prompts = [PROMPT_DICT["prompt_no_input"].format_map({"instruction": x, "input": ""}) for x in instructs]
 
