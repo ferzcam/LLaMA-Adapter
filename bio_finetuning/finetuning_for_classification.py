@@ -78,26 +78,24 @@ class InstructionDataset(Dataset):
 class InstructionDatasetForClassification(Dataset):
 
     def __init__(self, data_path, model_path, max_words=30, terms_dict = None):
-        self.ann = json.load(open(data_path))
+
+        self.data_df = pd.read_pickle(data_path)
+        self.descriptions = self.data_df["descriptions"].tolist()
+        self.go_annots = self.data_df["exp_annotations"].tolist()
         
         self.max_words = max_words
         tokenizer = Tokenizer(model_path=model_path + "./tokenizer.model")
         self.tokenizer1 = tokenizer
 
         self.terms_dict = terms_dict
+        self.labels = torch.zeros(len(self.terms_dict), dtype=torch.int64)
         
     def __len__(self):
-        return len(self.ann)
+        return len(self.data_df)
 
     def __getitem__(self, index):
 
-        ann = self.ann[index]
-        if ann.get("input", "") == "":
-            prompt = PROMPT_DICT["prompt_no_input"].format_map(ann)
-        else:
-            prompt = PROMPT_DICT["prompt_input"].format_map(ann)
-        example = prompt# + ann["output"]
-        prompt = torch.tensor(self.tokenizer1.encode(prompt, bos=True, eos=False), dtype=torch.int64)
+        example = self.descriptions[index]
         example = torch.tensor(self.tokenizer1.encode(example, bos=True, eos=True), dtype=torch.int64)
         padding = self.max_words - example.shape[0]
         if padding > 0:
@@ -105,21 +103,13 @@ class InstructionDatasetForClassification(Dataset):
         elif padding < 0:
             example = example[: self.max_words]
                     
-        #labels = copy.deepcopy(example)
-        #labels[: len(prompt)] = -1
         example_mask = example.ge(0)
-        #label_mask = labels.ge(0)
         example[~example_mask] = 0
-        #labels[~label_mask] = 0
-        example_mask = example_mask.float()
-        #label_mask = label_mask.float()
-
-        output = ann["output"]
-        gostring = output.split(",")
-        gostring = [x.strip() for x in gostring if x != '']
+        annots = self.go_annots[index]
+        annots = [self.terms_dict[term] for term in annots if term in self.terms_dict]
+        #assert len(annots) > 0
         labels = torch.zeros(len(self.terms_dict), dtype=torch.int64)
-        positives = [self.terms_dict[x] for x in gostring]
-        labels[positives] = 1
+        labels[annots] = 1
         
         return example, labels, example_mask
 
@@ -150,7 +140,7 @@ def get_args_parser():
     parser.add_argument("--adapter_len", type=int, default=10, metavar="LENGTH", help="the adapter length")
 
     parser.add_argument("--max_seq_len", type=int, default=512, metavar="LENGTH", help="the maximum sequence length")
-
+    
     # Optimizer parameters
     parser.add_argument("--weight_decay", type=float, default=0.05, help="weight decay (default: 0.05)")
 
@@ -217,8 +207,8 @@ def main(args):
     assert os.path.exists(args.data_path), f"Path {args.data_path} does not exist"
     assert os.path.exists(args.llama_model_path), f"Path {args.llama_model_path} does not exist"
 
-    train_data_path = os.path.join(args.data_path, "train_instruction_data_for_classification.json")
-    valid_data_path = os.path.join(args.data_path, "valid_instruction_data_for_classification.json")
+    train_data_path = os.path.join(args.data_path, "train_with_desc.pkl")
+    valid_data_path = os.path.join(args.data_path, "valid_with_desc.pkl")
 
     if args.training_mode == "masked_lm":
         dataset_train = InstructionDataset(
@@ -242,8 +232,9 @@ def main(args):
     else:
         raise ValueError("training mode not supported")
 
-    print(dataset_train)
-    print(dataset_val)
+    print("train dataset size: {}".format(len(dataset_train)))
+    print("valid dataset size: {}".format(len(dataset_val)))
+        
 
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()

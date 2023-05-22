@@ -51,10 +51,12 @@ def load(
     max_batch_size: int,
 ) -> LLaMA:
     start_time = time.time()
+    print(ckpt_dir)
     checkpoints = sorted(Path(ckpt_dir).glob("*.pth"))
-    assert world_size == len(
-        checkpoints
-    ), f"Loading a checkpoint for MP={len(checkpoints)} but world size is {world_size}"
+    print(checkpoints)
+    #assert world_size == len(
+    #    checkpoints
+    #), f"Loading a checkpoint for MP={len(checkpoints)} but world size is {world_size}"
     ckpt_path = checkpoints[local_rank]
     print("Loading")
     checkpoint = torch.load(ckpt_path, map_location="cpu")
@@ -85,22 +87,27 @@ def main(
     max_seq_len: int = 512,
     max_batch_size: int = 32,
 ):
+
+    assert os.path.exists(ckpt_dir), f"Checkpoint directory {ckpt_dir} does not exist"
+    assert os.path.exists(tokenizer_path), f"Tokenizer path {tokenizer_path} does not exist"
+    assert os.path.exists(adapter_path), f"Adapter path {adapter_path} does not exist"
+    
     local_rank, world_size = setup_model_parallel()
     if local_rank > 0:
         sys.stdout = open(os.devnull, "w")
 
     generator = load(ckpt_dir, tokenizer_path, adapter_path, local_rank, world_size, max_seq_len, max_batch_size)
     instructs = [
-        "Tell me about alpacas.",
-        "Tell me about the president of Mexico in 2019.",
-        "Tell me about the king of France in 2019.",
-        "List all Canadian provinces in alphabetical order.",
-        "Write a Python program that prints the first 10 Fibonacci numbers.",
-        "Write a program that prints the numbers from 1 to 100. But for multiples of three print 'Fizz' instead of the number and for the multiples of five print 'Buzz'. For numbers which are multiples of both three and five print 'FizzBuzz'.",  # noqa: E501
-        "Tell me five words that rhyme with 'shock'.",
-        "Translate the sentence 'I have no mouth but I must scream' into Spanish.",
-        "Count up from 1 to 500.",
-        "Which gene ontology terms describe the functional roles of 14331_MAIZE?",
+        #"Tell me about alpacas.",
+        #"Tell me about the president of Mexico in 2019.",
+        #"Tell me about the king of France in 2019.",
+        #"List all Canadian provinces in alphabetical order.",
+        #"Write a Python program that prints the first 10 Fibonacci numbers.",
+        #"Write a program that prints the numbers from 1 to 100. But for multiples of three print 'Fizz' instead of the number and for the multiples of five print 'Buzz'. For numbers which are multiples of both three and five print 'FizzBuzz'.",  # noqa: E501
+        #"Tell me five words that rhyme with 'shock'.",
+        #"Translate the sentence 'I have no mouth but I must scream' into Spanish.",
+        #"Count up from 1 to 500.",
+        "What are the functional annotations of the gene GRF1 associated with the protein 14-3-3-like protein GF14-6?",
     ]
     prompts = [PROMPT_DICT["prompt_no_input"].format_map({"instruction": x, "input": ""}) for x in instructs]
 

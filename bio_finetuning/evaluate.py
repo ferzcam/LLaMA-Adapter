@@ -34,7 +34,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 def main(data_root, ont, model, combine):
     train_data_file = f'{data_root}/{ont}/train_data.pkl'
     valid_data_file = f'{data_root}/{ont}/valid_data.pkl'
-    test_data_file = f'{data_root}/{ont}/prediction_matrix.pkl'
+    test_data_file = f'{data_root}/{ont}/valid_data_with_predictions.pkl'
     diam_data_file = f'{data_root}/{ont}/cafa_data_diam.pkl'
     terms_file = f'{data_root}/{ont}/terms.pkl'
     go_rels = Ontology(f'{data_root}/go-basic.obo', with_rels=True)
@@ -99,7 +99,7 @@ def main(data_root, ont, model, combine):
     spec_labels = test_df['exp_annotations'].values
     spec_labels = list(map(lambda x: set(filter(lambda y: y in go_set, x)), spec_labels))
     fmax_spec_match = 0
-    for t in range(0, 101):
+    for t in range(0, 101, 10):
         threshold = t / 100.0
         preds = []
         for i, row in enumerate(test_df.itertuples()):

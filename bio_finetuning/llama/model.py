@@ -240,11 +240,12 @@ class Transformer(nn.Module):
 
         elif training_mode == "classification":
             h = h.permute(0, 2, 1)
-            preds = self.aggregator(h)
+            preds = torch.mean(h, dim=-1)
+            #preds = self.aggregator(h)
             preds = preds.squeeze(-1)
-            preds = F.relu(preds)
+            #preds = F.relu(preds)
             preds = self.classifier(preds)
-            #preds = torch.mean(preds, dim=1).squeeze()
+            
             loss = self.bce_criterion(preds, labels.float())
             return loss
         else:
@@ -277,8 +278,10 @@ class Transformer(nn.Module):
             adapter_index = adapter_index + 1
 
         h = self.norm(h)
-        preds = self.classifier(h)
-        preds = preds.permute(0, 2, 1)
-        preds = self.aggregator(preds).squeeze(-1)
+        h = h.permute(0, 2, 1)
+        preds = torch.mean(h, dim=-1)
+        preds = preds.squeeze(-1)
+        #preds = F.relu(preds)
+        preds = self.classifier(preds)
         return F.sigmoid(preds)
                                 

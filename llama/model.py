@@ -152,7 +152,7 @@ class Attention(nn.Module):
             output = output + torch.matmul(adapter_scores, adapter_v)
         output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
 
-        return self.wo(output)
+        return self.wo(output) # (bs, slen, dim)
 
 
 class FeedForward(nn.Module):

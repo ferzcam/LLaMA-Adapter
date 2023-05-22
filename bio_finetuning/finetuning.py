@@ -77,44 +77,33 @@ class InstructionDataset(Dataset):
 class InstructionDatasetForClassification(Dataset):
 
     def __init__(self, data_path, model_path, max_words=30, go_terms_to_id):
-        self.ann = json.load(open(data_path))
-                                        
+
+        self.data_df = pd.read_pickle(data_path)
+        self.descriptions = self.data_df["description"].tolist()
+        self.go_annots = self.data_df["go_annots"].tolist()
+        self.go_terms_to_id = go_terms_to_id
         self.max_words = max_words
         tokenizer = Tokenizer(model_path=model_path + "./tokenizer.model")
         self.tokenizer1 = tokenizer
 
     def __len__(self):
-        return len(self.ann)
+        return len(self.data_df)
 
     def __getitem__(self, index):
 
-        ann = self.ann[index]
-        if ann.get("input", "") == "":
-            prompt = PROMPT_DICT["prompt_no_input"].format_map(ann)
-        else:
-            prompt = PROMPT_DICT["prompt_input"].format_map(ann)
-        example = prompt# + ann["output"]
-        prompt = torch.tensor(self.tokenizer1.encode(prompt, bos=True, eos=False), dtype=torch.int64)
+        prompt = self.descriptions[index]
         example = torch.tensor(self.tokenizer1.encode(example, bos=True, eos=True), dtype=torch.int64)
         padding = self.max_words - example.shape[0]
         if padding > 0:
             example = torch.cat((example, torch.zeros(padding, dtype=torch.int64) - 1))
         elif padding < 0:
             example = example[: self.max_words]
-                    
-        #labels = copy.deepcopy(example)
-        #labels[: len(prompt)] = -1
-        example_mask = example.ge(0)
-        #label_mask = labels.ge(0)
-        example[~example_mask] = 0
-        #labels[~label_mask] = 0
-        example_mask = example_mask.float()
-        #label_mask = label_mask.float()
-
-        output = ann["output"]
+            
+        example_mask = None
+        
         gostring = output.split(",")
         gostring = [x.strip() for x in gostring]
-        labels = torch.zeros(len(gostring), dtype=torch.int64)
+        labels = torch.zeros(len(self.to_terms_to_id), dtype=torch.int64)
         positives = [go_terms_to_id[x] for x in gostring]
         labels[positives] = 1
         
